@@ -42,7 +42,7 @@ concurrency:
 
 jobs:
   action-contract:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     # node:24 fixes the Node major and is Debian-based, so /bin/bash and npm are
     # both present: the contract harness spawns /bin/bash directly. No
