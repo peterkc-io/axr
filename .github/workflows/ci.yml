@@ -127,7 +127,7 @@ jobs:
         run: |
           make build-axr
           ./dist/axr --version
-          ./dist/axr --version | grep -q "axr"
+          ./dist/axr --version | grep -q "^axr $(cat AXR_VERSION) "
           rm -f ./dist/axr
 
   # Runs the suite natively on Windows, which the cross-compile job below cannot
