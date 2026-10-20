@@ -17,7 +17,7 @@ BUILD_DATE  := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 VERSION     ?= $(if $(GIT_TAG),$(GIT_TAG),v0.0.0-$(GIT_COMMIT))
 
 # Keep AXR versions independent of upstream release tags.
-AXR_VERSION = $(shell cat AXR_VERSION 2>/dev/null)
+AXR_VERSION := $(strip $(shell cat AXR_VERSION 2>/dev/null))
 
 LD_FLAGS    := \
 	-X main.Version=$(VERSION) \

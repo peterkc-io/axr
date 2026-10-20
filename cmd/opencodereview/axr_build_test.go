@@ -65,12 +65,13 @@ func TestAXRSubcommandHelpNamesAXR(t *testing.T) {
 	configureAXR()
 
 	ocr := regexp.MustCompile(`(^|[^A-Za-z0-9])ocr([^A-Za-z0-9]|$)`)
+	title := regexp.MustCompile(`OpenCodeReview|(^|[^A-Za-z0-9_])OCR([^A-Za-z0-9_]|$)`)
 	var walk func(*cobra.Command)
 	walk = func(cmd *cobra.Command) {
 		for _, sub := range cmd.Commands() {
 			for field, text := range map[string]string{"Long": sub.Long, "Example": sub.Example} {
-				if ocr.MatchString(text) {
-					t.Errorf("%s %s still names ocr: %q", sub.CommandPath(), field, text)
+				if ocr.MatchString(text) || title.MatchString(text) {
+					t.Errorf("%s %s still names ocr or OpenCodeReview: %q", sub.CommandPath(), field, text)
 				}
 			}
 			walk(sub)
@@ -80,6 +81,9 @@ func TestAXRSubcommandHelpNamesAXR(t *testing.T) {
 
 	if !strings.Contains(configSetCmd.Example, "axr config set provider anthropic") {
 		t.Errorf("config set example = %q, want axr config set provider anthropic", configSetCmd.Example)
+	}
+	if !strings.HasPrefix(delegateCmd.Long, "AXR - Delegation Mode") {
+		t.Errorf("delegate help = %q, want the AXR title", delegateCmd.Long)
 	}
 	if !strings.Contains(completionCmd.Long, `/_axr"`) {
 		t.Errorf("completion help = %q, want the zsh file named _axr", completionCmd.Long)

@@ -18,6 +18,9 @@ func init() {
 // The leading group also catches `_ocr`, the zsh completion file name.
 var ocrWord = regexp.MustCompile(`(^|[^A-Za-z0-9])ocr\b`)
 
+// Only the capitalized product names; `.opencodereview` and `OCR_*` stay.
+var ocrTitle = regexp.MustCompile(`OpenCodeReview|\bOCR\b`)
+
 func configureAXR() {
 	productName = "axr"
 	productURL = "https://github.com/peterkc-io/axr"
@@ -33,8 +36,12 @@ behave as they do in ocr.`
 
 func renameHelp(cmd *cobra.Command) {
 	for _, sub := range cmd.Commands() {
-		sub.Long = ocrWord.ReplaceAllString(sub.Long, "${1}axr")
-		sub.Example = ocrWord.ReplaceAllString(sub.Example, "${1}axr")
+		sub.Long = renameText(sub.Long)
+		sub.Example = renameText(sub.Example)
 		renameHelp(sub)
 	}
+}
+
+func renameText(s string) string {
+	return ocrTitle.ReplaceAllString(ocrWord.ReplaceAllString(s, "${1}axr"), "AXR")
 }
