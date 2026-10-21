@@ -12,6 +12,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	productName = "open-code-review"
+	productURL  = "https://github.com/alibaba/open-code-review"
+)
+
 var rootCmd = &cobra.Command{
 	Use:   "ocr",
 	Short: "OpenCodeReview - AI-Powered Code Review CLI",
@@ -80,7 +85,7 @@ func commandNeedsGit(cmd *cobra.Command) bool {
 }
 
 func versionString() string {
-	s := fmt.Sprintf("open-code-review %s", Version)
+	s := fmt.Sprintf("%s %s", productName, Version)
 	if GitCommit != "" {
 		s += fmt.Sprintf(" (%s)", GitCommit)
 	}
@@ -88,6 +93,6 @@ func versionString() string {
 	if BuildDate != "" {
 		s += fmt.Sprintf("built at: %s\n", BuildDate)
 	}
-	s += "https://github.com/alibaba/open-code-review\n"
+	s += productURL + "\n"
 	return s
 }

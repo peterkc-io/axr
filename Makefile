@@ -1,4 +1,4 @@
-.PHONY: build test clean run help fmt vet check coverage \
+.PHONY: build build-axr test test-axr clean run help fmt vet check coverage \
 	build-all dist sha256sum version-info \
 	build-linux-amd64 build-linux-arm64 build-darwin-amd64 build-darwin-arm64 \
 	build-windows-amd64 build-windows-arm64 \
@@ -15,6 +15,9 @@ GIT_COMMIT  := $(shell git rev-parse --short HEAD)
 BUILD_DATE  := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 VERSION     ?= $(if $(GIT_TAG),$(GIT_TAG),v0.0.0-$(GIT_COMMIT))
+
+# Keep AXR versions independent of upstream release tags.
+AXR_VERSION := $(strip $(shell cat AXR_VERSION 2>/dev/null))
 
 LD_FLAGS    := \
 	-X main.Version=$(VERSION) \
@@ -33,6 +36,10 @@ endef
 build:
 	$(GO) build -ldflags "$(LD_FLAGS)" -o $(DIST_DIR)/$(BINARY_NAME)$(EXE) ./cmd/opencodereview
 
+build-axr:
+	@test -n "$(AXR_VERSION)" || { echo "AXR_VERSION file is missing or empty"; exit 1; }
+	$(GO) build -tags axr -ldflags "-X main.Version=$(AXR_VERSION) -X main.GitCommit=$(GIT_COMMIT) -X main.BuildDate=$(BUILD_DATE)" -o $(DIST_DIR)/axr$(EXE) ./cmd/opencodereview
+
 # No node_modules filter is needed for the docs site: pages/go.mod puts it in a
 # module of its own, so `go list ./...` skips that subtree entirely -- see that
 # file for why a module boundary is used instead of a per-command grep. Deleting
@@ -43,6 +50,10 @@ PACKAGES := $(shell $(GO) list ./... | grep -v /extensions/)
 
 test:
 	LC_ALL=C $(GO) test -v -race -count=1 $(PACKAGES)
+
+test-axr:
+	LC_ALL=C $(GO) vet -tags axr $(PACKAGES)
+	LC_ALL=C $(GO) test -v -race -count=1 -tags axr -run '^TestAXR' ./cmd/opencodereview
 
 COVERAGE_THRESHOLD := 90
 

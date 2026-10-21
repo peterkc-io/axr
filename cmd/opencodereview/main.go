@@ -13,7 +13,13 @@ import (
 	"github.com/alibaba/open-code-review/internal/telemetry"
 )
 
+// configureBuild lets tagged builds configure the CLI after all init functions run.
+var configureBuild func()
+
 func main() {
+	if configureBuild != nil {
+		configureBuild()
+	}
 	llm.AppVersion = Version
 	os.Exit(run())
 }

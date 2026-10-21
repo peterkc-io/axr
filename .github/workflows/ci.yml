@@ -118,6 +118,18 @@ jobs:
           echo "$HELP" | grep -q "rules"
           rm -f ./opencodereview
 
+      # The axr CLI is the same command package behind the axr build tag, so the
+      # untagged steps above never compile axr_build.go.
+      - name: Vet and test the axr build
+        run: make test-axr
+
+      - name: Build and smoke test axr
+        run: |
+          make build-axr
+          ./dist/axr --version
+          ./dist/axr --version | grep -q "^axr $(cat AXR_VERSION) "
+          rm -f ./dist/axr
+
   # Runs the suite natively on Windows, which the cross-compile job below cannot
   # do: it only proves the windows arms of the build-tag splits compile. GitHub
   # does not support `container:` on Windows runners
