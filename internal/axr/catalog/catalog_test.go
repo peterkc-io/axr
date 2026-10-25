@@ -98,6 +98,34 @@ func TestParseAndLoad(t *testing.T) {
 	}
 }
 
+func TestLoadSymlinkedRulesDir(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "source"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "source", "one.md"), []byte(fixture), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(root, "source"), filepath.Join(root, "rules")); err != nil {
+		t.Fatal(err)
+	}
+	if rules, err := Load(root, true); err != nil || len(rules) != 1 {
+		t.Fatalf("symlinked rules dir inside root: %v, %v", rules, err)
+	}
+
+	escaping := t.TempDir()
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "one.md"), []byte(fixture), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(escaping, "rules")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(escaping, true); err == nil || !strings.Contains(err.Error(), "outside the catalog root") {
+		t.Fatalf("escaping rules dir: %v", err)
+	}
+}
+
 func TestScope(t *testing.T) {
 	r := Rule{Languages: []string{"python"}}
 	for _, path := range []string{"a.py", "a.pyi", "a.ipynb"} {

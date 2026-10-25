@@ -99,9 +99,18 @@ func Load(root string, includeDrafts bool) ([]Rule, error) {
 	if err != nil {
 		return nil, err
 	}
+	// WalkDir does not follow a symlinked root, so resolve the rules directory first
+	// and hold it to the same containment rule as each rule file.
+	rulesDir, err := filepath.EvalSymlinks(filepath.Join(resolved, "rules"))
+	if err != nil {
+		return nil, err
+	}
+	if relative, err := filepath.Rel(resolved, rulesDir); err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return nil, fmt.Errorf("rules directory resolves outside the catalog root: %s", rulesDir)
+	}
 	var rules []Rule
 	ids := map[string]bool{}
-	err = filepath.WalkDir(filepath.Join(resolved, "rules"), func(path string, entry fs.DirEntry, err error) error {
+	err = filepath.WalkDir(rulesDir, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
