@@ -118,14 +118,20 @@ jobs:
           echo "$HELP" | grep -q "rules"
           rm -f ./opencodereview
 
+      # The AXR recipes live in the justfile, so the Makefile stays identical to
+      # upstream.
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+        with:
+          just-version: 1.59.0
+
       # The axr CLI is the same command package behind the axr build tag, so the
       # untagged steps above never compile axr_build.go.
       - name: Vet and test the axr build
-        run: make test-axr
+        run: just test-axr
 
       - name: Build and smoke test axr
         run: |
-          make build-axr
+          just build-axr
           ./dist/axr --version
           ./dist/axr --version | grep -q "^axr $(cat AXR_VERSION) "
           rm -f ./dist/axr
