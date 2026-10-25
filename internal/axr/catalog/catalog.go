@@ -41,6 +41,13 @@ func Parse(text string) (Rule, error) {
 	if rule.ID == "" || rule.Title == "" || rule.Status == "" || len(rule.Languages) == 0 {
 		return rule, fmt.Errorf("id, title, status and languages are required")
 	}
+	for _, language := range rule.Languages {
+		switch language {
+		case "python", "typescript", "javascript", "go", "rust":
+		default:
+			return rule, fmt.Errorf("unsupported language %q", language)
+		}
+	}
 	for _, pattern := range append(slices.Clone(rule.Paths), rule.Exclude...) {
 		if !doublestar.ValidatePattern(pattern) {
 			return rule, fmt.Errorf("invalid glob %q", pattern)
@@ -133,7 +140,10 @@ func Load(root string, includeDrafts bool) ([]Rule, error) {
 		return nil, err
 	}
 	if len(rules) == 0 {
-		return nil, fmt.Errorf("no rules loaded; use --include-drafts for a draft catalog")
+		if !includeDrafts {
+			return nil, fmt.Errorf("no rules loaded; use --include-drafts for a draft catalog")
+		}
+		return nil, fmt.Errorf("no rules loaded from %s", filepath.Join(root, "rules"))
 	}
 	slices.SortFunc(rules, func(a, b Rule) int { return strings.Compare(a.ID, b.ID) })
 	return rules, nil

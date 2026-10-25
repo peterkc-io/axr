@@ -37,6 +37,12 @@ Not embedded either.
 `
 
 func TestParseAndLoad(t *testing.T) {
+	if _, err := Parse(strings.Replace(fixture, "[python]", "[java]", 1)); err == nil || !strings.Contains(err.Error(), "java") {
+		t.Fatalf("unsupported language: %v", err)
+	}
+	if _, err := Parse(strings.Replace(fixture, "[python]", "[javascript]", 1)); err != nil {
+		t.Fatal(err)
+	}
 	r, err := Parse(fixture)
 	if err != nil {
 		t.Fatal(err)
@@ -53,6 +59,9 @@ func TestParseAndLoad(t *testing.T) {
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, "rules"), 0700); err != nil {
 		t.Fatal(err)
+	}
+	if _, err := Load(root, true); err == nil || strings.Contains(err.Error(), "--include-drafts") || !strings.Contains(err.Error(), filepath.Join(root, "rules")) {
+		t.Fatalf("empty catalog with drafts: %v", err)
 	}
 	path := filepath.Join(root, "rules", "one.md")
 	if err := os.WriteFile(path, []byte(fixture), 0600); err != nil {

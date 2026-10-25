@@ -53,7 +53,7 @@ func ParsePatch(text string) ([]File, error) {
 		}
 		if oldLeft > 0 || newLeft > 0 {
 			switch {
-			case strings.HasPrefix(line, " "):
+			case line == "" || strings.HasPrefix(line, " "):
 				oldLeft--
 				newLeft--
 			case strings.HasPrefix(line, "-"):

@@ -5,7 +5,7 @@ package rank
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -18,6 +18,16 @@ import (
 const patch = "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-old\n+new\n@@ -4 +4 @@\n-before\n+after\n"
 
 func TestPatch(t *testing.T) {
+	for _, prefix := range []string{"diff --git a/a.py b/a.py\n", ""} {
+		one := prefix + "--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n\n"
+		files, err := ParsePatch(one + strings.ReplaceAll(one, "a.py", "b.py"))
+		if err != nil || len(files) != 2 || files[0].Path != "a.py" || files[1].Path != "b.py" || len(files[0].Hunks) != 1 || len(files[1].Hunks) != 1 || !strings.HasSuffix(files[0].Hunks[0], "\n") {
+			t.Fatalf("two files with blank context: %v %v", files, err)
+		}
+		if _, err := ParsePatch(prefix + "--- a/a.py\n+++ b/a.py\n@@ -1,2 +1,2 @@\n\n"); err == nil {
+			t.Fatal("accepted truncated blank context")
+		}
+	}
 	for _, text := range []string{patch, strings.TrimPrefix(patch, "diff --git a/a.py b/a.py\n"), strings.ReplaceAll(patch, "\n", "\r\n")} {
 		files, err := ParsePatch(text)
 		if err != nil || len(files) != 1 || files[0].Path != "a.py" || len(files[0].Hunks) != 2 {
@@ -72,22 +82,62 @@ func TestScore(t *testing.T) {
 func TestRun(t *testing.T) {
 	for _, model := range []string{"voyage-context-4", "voyage-code-4"} {
 		t.Run(model, func(t *testing.T) {
-			calls := 0
+			calls, diffCalls := 0, 0
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				calls++
-				if r.URL.Path == "/contextualizedembeddings" {
-					fmt.Fprint(w, `{"data":[{"index":0,"data":[{"index":0,"embedding":[1,0]}]}],"usage":{"total_tokens":2}}`)
-				} else {
-					fmt.Fprint(w, `{"data":[{"index":0,"embedding":[1,0]}],"usage":{"total_tokens":2}}`)
+				var body struct {
+					InputType string     `json:"input_type"`
+					Input     []string   `json:"input"`
+					Inputs    [][]string `json:"inputs"`
 				}
+				json.NewDecoder(r.Body).Decode(&body)
+				contextual := len(body.Inputs) > 0
+				isDiff := body.InputType == "query"
+				if contextual {
+					isDiff = body.InputType == "document"
+				}
+				if isDiff {
+					diffCalls++
+				}
+				for _, text := range body.Input {
+					body.Inputs = append(body.Inputs, []string{text})
+				}
+				data := make([]map[string]any, len(body.Inputs))
+				for i, doc := range body.Inputs {
+					chunks := make([]map[string]any, len(doc))
+					for j, text := range doc {
+						v := []int{1, 0}
+						if strings.HasPrefix(text, "other") {
+							v = []int{0, 1}
+						}
+						chunks[j] = map[string]any{"index": j, "embedding": v}
+					}
+					data[i] = map[string]any{"index": i, "data": chunks, "embedding": chunks[0]["embedding"]}
+				}
+				json.NewEncoder(w).Encode(map[string]any{"data": data, "usage": map[string]int{"total_tokens": 2}})
 			}))
 			defer server.Close()
 			rules := []catalog.Rule{{ID: "rule", Text: "text", Languages: []string{"python"}}}
-			files := []File{{Path: "a.py", Patch: "patch", Hunks: []string{"hunk"}}, {Path: "a.txt", Hunks: []string{"other"}}}
+			files := []File{{Path: "a.py", Patch: "patch", Hunks: []string{"hunk"}}, {Path: "b.py", Patch: "other patch", Hunks: []string{"other hunk"}}, {Path: "a.txt", Hunks: []string{"other"}}}
 			c := embed.Client{BaseURL: server.URL, Key: "secret", Model: model, HTTP: server.Client()}
 			out, err := Run(context.Background(), rules, files, c, t.TempDir(), 0)
-			if err != nil || calls != 2 || out.Schema != "axr-rank/1" || out.Usage.RuleTokens != 2 || out.Usage.DiffTokens != 2 || len(out.Files) != 2 || out.Files[0].Ranked[0].Score != 1 || len(out.Files[1].Ranked) != 0 || out.Files[1].Ranked == nil {
+			if err != nil || calls != 2 || out.Schema != "axr-rank/1" || out.Usage.RuleTokens != 2 || out.Usage.DiffTokens != 2 || len(out.Files) != 3 || diffCalls != 1 || out.Files[0].Ranked[0].Score != 1 || out.Files[1].Ranked[0].Score != 0 || len(out.Files[2].Ranked) != 0 || out.Files[2].Ranked == nil {
 				t.Fatalf("run: %+v %v calls %d", out, err, calls)
+			}
+			files[1].Patch = strings.Repeat("x", embed.MaxBytes+1)
+			files[1].Hunks = []string{files[1].Patch}
+			diffCalls = 0
+			if _, err := Run(context.Background(), rules, files, c, t.TempDir(), 0); err == nil || diffCalls != 0 {
+				t.Fatalf("oversize later file: %v, diff calls %d", err, diffCalls)
+			}
+			if c.Contextual() {
+				files[0].Hunks = []string{strings.Repeat("other", embed.MaxBytes/5), "best"}
+				files = files[:1]
+				diffCalls = 0
+				out, err = Run(context.Background(), rules, files, c, t.TempDir(), 0)
+				if err != nil || diffCalls != 2 || out.Files[0].Ranked[0].Score != 1 {
+					t.Fatalf("split file: %+v %v, diff calls %d", out, err, diffCalls)
+				}
 			}
 		})
 	}

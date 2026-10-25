@@ -96,7 +96,10 @@ func Run(ctx context.Context, rules []catalog.Rule, files []File, c embed.Client
 	}
 	out.Usage.RuleTokens = tokens
 	out.Usage.CachedRules = cached
-	for _, file := range files {
+	var docs [][]string
+	ends := make([]int, len(files))
+	_, inputType := c.InputTypes()
+	for i, file := range files {
 		fr := FileResult{Path: file.Path, Language: catalog.Language(file.Path), Hunks: len(file.Hunks), Ranked: []Scored{}}
 		for _, r := range rules {
 			if r.InScope(file.Path) {
@@ -104,11 +107,9 @@ func Run(ctx context.Context, rules []catalog.Rule, files []File, c embed.Client
 			}
 		}
 		if fr.RulesInScope > 0 && len(file.Hunks) > 0 {
-			docs := [][]string{{file.Patch}}
-			inputType := "query"
-			if c.Contextual() {
-				inputType = "document"
-				docs = nil
+			if !c.Contextual() {
+				docs = append(docs, []string{file.Patch})
+			} else {
 				var group []string
 				size := 0
 				for _, hunk := range file.Hunks {
@@ -126,21 +127,31 @@ func Run(ctx context.Context, rules []catalog.Rule, files []File, c embed.Client
 					docs = append(docs, group)
 				}
 			}
-			embedded, used, err := c.Embed(ctx, docs, inputType)
-			if err != nil {
-				return out, err
-			}
-			out.Usage.DiffTokens += used
+		}
+		ends[i] = len(docs)
+		out.Files = append(out.Files, fr)
+	}
+	if len(docs) == 0 {
+		return out, nil
+	}
+	embedded, used, err := c.Embed(ctx, docs, inputType)
+	if err != nil {
+		return out, err
+	}
+	out.Usage.DiffTokens = used
+	start := 0
+	for i, end := range ends {
+		if end > start {
 			var chunks [][]float64
-			for _, doc := range embedded {
+			for _, doc := range embedded[start:end] {
 				chunks = append(chunks, doc...)
 			}
-			fr.Ranked, _, err = Score(rules, vectors, chunks, file.Path, top)
+			out.Files[i].Ranked, _, err = Score(rules, vectors, chunks, files[i].Path, top)
 			if err != nil {
 				return out, err
 			}
 		}
-		out.Files = append(out.Files, fr)
+		start = end
 	}
 	return out, nil
 }
